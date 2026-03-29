@@ -94,7 +94,7 @@ export function VacancyDetailSheet({
   candidates: VacancyCandidate[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpdate: (id: string, patch: Partial<Vacancy>) => void;
+  onUpdate: (id: string, patch: Partial<Vacancy>) => Promise<Vacancy | undefined>;
 }) {
   const v = vacancy;
   const moneda = v?.moneda ?? "PEN";
@@ -136,7 +136,7 @@ export function VacancyDetailSheet({
     setDraft(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!v || !draft) return;
 
     const parseNumber = (s: string): number | undefined => {
@@ -147,7 +147,7 @@ export function VacancyDetailSheet({
       return n;
     };
 
-    onUpdate(v.id, {
+    const updated = await onUpdate(v.id, {
       cargo: draft.cargo.trim() || v.cargo,
       area: draft.area.trim() || v.area,
       sede: draft.sede,
@@ -159,37 +159,42 @@ export function VacancyDetailSheet({
       fechaSolicitud: draft.fechaSolicitud,
     });
 
+    if (!updated) return;
+
     setEditMode(false);
     setDraft(null);
   };
 
-  const handleCerrar = () => {
+  const handleCerrar = async () => {
     if (!v) return;
     const hoy = new Date().toISOString().slice(0, 10);
-    onUpdate(v.id, { estado: "cubierta", fechaCierre: hoy });
+    const updated = await onUpdate(v.id, { estado: "cubierta", fechaCierre: hoy });
+    if (!updated) return;
     onOpenChange(false);
   };
 
-  const handlePausar = () => {
+  const handlePausar = async () => {
     if (!v) return;
-    onUpdate(v.id, { estado: "pausada" });
+    const updated = await onUpdate(v.id, { estado: "pausada" });
+    if (!updated) return;
     onOpenChange(false);
   };
 
-  const handleReactivar = () => {
+  const handleReactivar = async () => {
     if (!v) return;
-    onUpdate(v.id, { estado: "abierta" });
+    const updated = await onUpdate(v.id, { estado: "abierta" });
+    if (!updated) return;
     onOpenChange(false);
   };
 
-  const handleEstado = (estado: VacancyEstado) => {
+  const handleEstado = async (estado: VacancyEstado) => {
     if (!v) return;
     if (estado === "cubierta") {
       const hoy = new Date().toISOString().slice(0, 10);
-      onUpdate(v.id, { estado: "cubierta", fechaCierre: hoy });
+      await onUpdate(v.id, { estado: "cubierta", fechaCierre: hoy });
       return;
     }
-    onUpdate(v.id, { estado, fechaCierre: undefined });
+    await onUpdate(v.id, { estado, fechaCierre: undefined });
   };
 
   return (

@@ -1,16 +1,9 @@
 "use client";
 
 import { CandidatesScreen } from "@/components/candidates/candidates-screen";
-import { mockCandidates } from "@/data/mock-candidates";
-import { mockVacancies } from "@/data/mock-vacancies";
 
 export default function CandidatosPage() {
-  return (
-    <CandidatesScreen
-      initialCandidates={mockCandidates}
-      vacancies={mockVacancies}
-    />
-  );
+  return <CandidatesScreen initialCandidates={[]} vacancies={[]} />;
 }
 
 /*

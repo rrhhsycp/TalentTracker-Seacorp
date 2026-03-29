@@ -65,15 +65,24 @@ export function VacanciesTable({
 }: {
   vacancies: Vacancy[];
   candidatesByVacancyId: Record<string, VacancyCandidate[]>;
-  onVacancyUpdate: (id: string, patch: Partial<Vacancy>) => void;
-  onVacancyDelete: (id: string) => void;
+  onVacancyUpdate: (
+    id: string,
+    patch: Partial<Vacancy>
+  ) => Promise<Vacancy | undefined>;
+  onVacancyDelete: (id: string) => void | Promise<void>;
 }) {
   const [selected, setSelected] = useState<Vacancy | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const handleVacancyUpdate = (id: string, patch: Partial<Vacancy>) => {
-    onVacancyUpdate(id, patch);
-    setSelected((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+  const handleVacancyUpdate = async (
+    id: string,
+    patch: Partial<Vacancy>
+  ): Promise<Vacancy | undefined> => {
+    const updated = await onVacancyUpdate(id, patch);
+    if (updated) {
+      setSelected((prev) => (prev && prev.id === id ? updated : prev));
+    }
+    return updated;
   };
 
   const openDetail = selected !== null;
@@ -217,15 +226,15 @@ export function VacanciesTable({
           <AlertDialogHeader>
             <AlertDialogTitle>Eliminar vacante</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción eliminará la vacante de forma permanente del estado local.
+              Esta acción eliminará la vacante de forma permanente en Supabase.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
+              onClick={async () => {
                 if (!deleteId) return;
-                onVacancyDelete(deleteId);
+                await onVacancyDelete(deleteId);
                 if (selected?.id === deleteId) setSelected(null);
                 setDeleteId(null);
               }}

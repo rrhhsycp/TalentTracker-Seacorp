@@ -34,8 +34,8 @@ import { VACANCY_SEDES } from "@/types/vacancy";
 import type { CandidateCvProfile } from "@/data/mock-candidate-profiles";
 import { mockCandidateCvProfiles } from "@/data/mock-candidate-profiles";
 import { getBudgetStatus } from "@/lib/candidate-budget";
-import { loadPersistedCandidates, persistCandidates } from "@/lib/persisted-candidates";
-import { loadPersistedVacancies } from "@/lib/persisted-vacancies";
+import { supabase } from "@/lib/supabase";
+import { mapCandidateRow, mapVacancyRow } from "@/lib/supabase-mappers";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,9 +99,8 @@ export function CandidatesScreen({
   initialCandidates: Candidate[];
   vacancies: Vacancy[];
 }) {
-  const [candidates, setCandidates] = useState(initialCandidates);
-  const [candidatesHydrated, setCandidatesHydrated] = useState(false);
-  const [vacanciesState, setVacanciesState] = useState(vacancies);
+  const [candidates, setCandidates] = useState<Candidate[]>(initialCandidates);
+  const [vacanciesState, setVacanciesState] = useState<Vacancy[]>(vacancies);
   const [sedeFilter, setSedeFilter] = useState<CandidateSede | "todas">(
     "todas"
   );
@@ -148,20 +147,31 @@ export function CandidatesScreen({
   } | null>(null);
 
   useEffect(() => {
-    const persisted = loadPersistedVacancies();
-    if (persisted && persisted.length > 0) setVacanciesState(persisted);
-  }, []);
+    let cancelled = false;
+    (async () => {
+      const [vRes, cRes] = await Promise.all([
+        supabase.from("vacantes").select("*"),
+        supabase.from("candidatos").select("*"),
+      ]);
 
-  useEffect(() => {
-    const persisted = loadPersistedCandidates();
-    if (persisted && persisted.length > 0) setCandidates(persisted);
-    setCandidatesHydrated(true);
-  }, []);
+      if (cancelled) return;
 
-  useEffect(() => {
-    if (!candidatesHydrated) return;
-    persistCandidates(candidates);
-  }, [candidates, candidatesHydrated]);
+      if (vRes.error) {
+        console.error("Supabase vacantes:", vRes.error);
+      } else if (vRes.data != null) {
+        setVacanciesState(vRes.data.map((row) => mapVacancyRow(row as Record<string, unknown>)));
+      }
+
+      if (cRes.error) {
+        console.error("Supabase candidatos:", cRes.error);
+      } else if (cRes.data != null) {
+        setCandidates(cRes.data.map((row) => mapCandidateRow(row as Record<string, unknown>)));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const activeVacancies = useMemo(() => {
     return vacanciesState.filter(
@@ -236,9 +246,8 @@ export function CandidatesScreen({
     setDraftEdit(null);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!selectedCandidate || !draftEdit) return;
-    const nowIso = new Date().toISOString();
     const n = Number(draftEdit.expectativaSalarial);
     const a = Number(draftEdit.aniosExperiencia);
     if (
@@ -254,31 +263,43 @@ export function CandidatesScreen({
     )
       return;
 
-    setCandidates((prev) =>
-      prev.map((c) =>
-        c.id === selectedCandidate.id
-          ? {
-              ...c,
-              nombre: draftEdit.nombre.trim(),
-              dni: draftEdit.dni.trim(),
-              sede: draftEdit.sede,
-              vacancyId: draftEdit.vacancyId,
-              etapa: draftEdit.etapa,
-              expectativaSalarial: n,
-              moneda: draftEdit.moneda,
-              gradoAcademico: draftEdit.gradoAcademico,
-              estadoEstudios: draftEdit.estadoEstudios,
-              carreraEspecialidad: draftEdit.carreraEspecialidad.trim(),
-              aniosExperiencia: a,
-              ultimoCargo: draftEdit.ultimoCargo.trim(),
-              observaciones: draftEdit.observaciones.trim(),
-              updatedAt: nowIso,
-            }
-          : c
-      )
-    );
-    setEditMode(false);
-    setDraftEdit(null);
+    try {
+      const { data, error } = await supabase
+        .from("candidatos")
+        .update({
+          nombre_completo: draftEdit.nombre.trim(),
+          dni: draftEdit.dni.trim(),
+          sede: draftEdit.sede,
+          vacante_id: draftEdit.vacancyId,
+          etapa: draftEdit.etapa,
+          expectativa_salarial: n,
+          moneda: draftEdit.moneda,
+          grado_academico: draftEdit.gradoAcademico,
+          estado_estudios: draftEdit.estadoEstudios,
+          carrera: draftEdit.carreraEspecialidad.trim(),
+          anios_experiencia: a,
+          ultimo_cargo: draftEdit.ultimoCargo.trim(),
+          observaciones: draftEdit.observaciones.trim(),
+        })
+        .eq("id", selectedCandidate.id)
+        .select()
+        .single();
+
+      if (error) {
+        alert(`No se pudo actualizar el candidato: ${error.message}`);
+        return;
+      }
+
+      if (data) {
+        const mapped = mapCandidateRow(data as Record<string, unknown>);
+        setCandidates((prev) => prev.map((c) => (c.id === selectedCandidate.id ? mapped : c)));
+      }
+      setEditMode(false);
+      setDraftEdit(null);
+    } catch (err) {
+      console.error(err);
+      alert("Error inesperado al actualizar el candidato.");
+    }
   };
 
   const vacancyOptionsForSelection = (currentVacancyId?: string) => {
@@ -321,9 +342,8 @@ export function CandidatesScreen({
     setDraftNew(null);
   }, [newCandidateOpen]);
 
-  const saveNew = () => {
+  const saveNew = async () => {
     if (!draftNew) return;
-    const nowIso = new Date().toISOString();
     const n = Number(draftNew.expectativaSalarial);
     const a = Number(draftNew.aniosExperiencia);
     if (
@@ -344,27 +364,44 @@ export function CandidatesScreen({
         ? crypto.randomUUID()
         : `cand-${Date.now()}`;
 
-    const newCandidate: Candidate = {
+    const payload = {
       id,
-      nombre: draftNew.nombre.trim(),
+      nombre_completo: draftNew.nombre.trim(),
       dni: draftNew.dni.trim(),
       sede: draftNew.sede,
-      vacancyId: draftNew.vacancyId,
+      vacante_id: draftNew.vacancyId,
       etapa: draftNew.etapa,
-      expectativaSalarial: n,
+      expectativa_salarial: n,
       moneda: draftNew.moneda,
-      gradoAcademico: draftNew.gradoAcademico,
-      estadoEstudios: draftNew.estadoEstudios,
-      carreraEspecialidad: draftNew.carreraEspecialidad.trim(),
-      aniosExperiencia: a,
-      ultimoCargo: draftNew.ultimoCargo.trim(),
+      grado_academico: draftNew.gradoAcademico,
+      estado_estudios: draftNew.estadoEstudios,
+      carrera: draftNew.carreraEspecialidad.trim(),
+      anios_experiencia: a,
+      ultimo_cargo: draftNew.ultimoCargo.trim(),
       observaciones: draftNew.observaciones.trim(),
-      createdAt: nowIso,
-      updatedAt: nowIso,
     };
 
-    setCandidates((prev) => [newCandidate, ...prev]);
-    setNewCandidateOpen(false);
+    try {
+      const { data, error } = await supabase
+        .from("candidatos")
+        .insert([payload])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Error Supabase:", error);
+        alert(`No se pudo guardar el candidato: ${error.message}`);
+        return;
+      }
+
+      if (data) {
+        setCandidates((prev) => [mapCandidateRow(data as Record<string, unknown>), ...prev]);
+        setNewCandidateOpen(false);
+      }
+    } catch (err) {
+      console.error("Error inesperado:", err);
+      alert("Error inesperado al guardar el candidato.");
+    }
   };
 
   // Modales existentes para CV / entrevista / mover etapa
@@ -373,15 +410,30 @@ export function CandidatesScreen({
   const editingCandidate =
     stageDialogId == null ? null : candidates.find((c) => c.id === stageDialogId) ?? null;
 
-  const confirmStageMove = () => {
+  const confirmStageMove = async () => {
     if (!stageDialogId) return;
-    const nowIso = new Date().toISOString();
-    setCandidates((prev) =>
-      prev.map((c) =>
-        c.id === stageDialogId ? { ...c, etapa: draftEtapa, updatedAt: nowIso } : c
-      )
-    );
-    setStageDialogId(null);
+    try {
+      const { data, error } = await supabase
+        .from("candidatos")
+        .update({ etapa: draftEtapa })
+        .eq("id", stageDialogId)
+        .select()
+        .single();
+
+      if (error) {
+        alert(`No se pudo actualizar la etapa: ${error.message}`);
+        return;
+      }
+
+      if (data) {
+        const mapped = mapCandidateRow(data as Record<string, unknown>);
+        setCandidates((prev) => prev.map((c) => (c.id === stageDialogId ? mapped : c)));
+      }
+      setStageDialogId(null);
+    } catch (err) {
+      console.error(err);
+      alert("Error inesperado al actualizar la etapa.");
+    }
   };
 
   const [cvDialogId, setCvDialogId] = useState<string | null>(null);

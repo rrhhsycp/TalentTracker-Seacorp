@@ -18,7 +18,6 @@ import {
 } from "@/lib/vacancy-metrics";
 import type { Candidate } from "@/types/candidate";
 import type { VacancyCandidate } from "@/data/mock-vacancy-candidates";
-import { loadPersistedCandidates } from "@/lib/persisted-candidates";
 import { NewVacancyDialog } from "@/components/vacancies/new-vacancy-dialog";
 import { VacanciesByAreaChart } from "@/components/vacancies/vacancies-by-area-chart";
 import { VacanciesKpiCards } from "@/components/vacancies/vacancies-kpi-cards";
@@ -33,11 +32,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { supabase } from "@/lib/supabase";
 import {
-  loadPersistedVacancies,
-  persistVacancies,
-} from "@/lib/persisted-vacancies";
-
+  mapCandidateRow,
+  mapVacancyRow,
+  vacancyPatchToDbRow,
+} from "@/lib/supabase-mappers";
 function formatDate(iso?: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -60,8 +60,7 @@ export function VacanciesModule({
 }: {
   initialVacancies: Vacancy[];
 }) {
-  const [vacancies, setVacancies] = useState(initialVacancies);
-  const [vacanciesHydrated, setVacanciesHydrated] = useState(false);
+  const [vacancies, setVacancies] = useState<Vacancy[]>(initialVacancies);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [sedeFilter, setSedeFilter] = useState<VacancySede | "todas">("todas");
   const [estadoFilter, setEstadoFilter] = useState<VacancyEstado | "todas">("todas");
@@ -69,14 +68,23 @@ export function VacanciesModule({
   const pageSize = 10;
 
   useEffect(() => {
-    const persisted = loadPersistedVacancies();
-    if (persisted && persisted.length > 0) setVacancies(persisted);
-    setVacanciesHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    const persisted = loadPersistedCandidates();
-    if (persisted && persisted.length > 0) setCandidates(persisted);
+    let cancelled = false;
+    (async () => {
+      const [vRes, cRes] = await Promise.all([
+        supabase.from("vacantes").select("*"),
+        supabase.from("candidatos").select("*"),
+      ]);
+      if (cancelled) return;
+      if (!vRes.error && vRes.data != null) {
+        setVacancies(vRes.data.map((row) => mapVacancyRow(row as Record<string, unknown>)));
+      }
+      if (!cRes.error && cRes.data != null) {
+        setCandidates(cRes.data.map((row) => mapCandidateRow(row as Record<string, unknown>)));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -98,11 +106,6 @@ export function VacanciesModule({
       return changed ? next : prev;
     });
   }, [candidates]);
-
-  useEffect(() => {
-    if (!vacanciesHydrated) return;
-    persistVacancies(vacancies);
-  }, [vacancies, vacanciesHydrated]);
 
   const kpis = useMemo(() => computeVacancyKpis(vacancies), [vacancies]);
   const byArea = useMemo(
@@ -211,12 +214,39 @@ export function VacanciesModule({
           </p>
         </div>
         <NewVacancyDialog
-          onCreated={(v) =>
-            setVacancies((prev) => {
-              const nowIso = new Date().toISOString();
-              return [{ ...v, createdAt: v.createdAt ?? nowIso, updatedAt: nowIso }, ...prev];
-            })
-          }
+          onCreated={async (v: Vacancy) => {
+            const { data, error } = await supabase
+              .from("vacantes")
+              .insert([
+                {
+                  cargo: v.cargo,
+                  area: v.area,
+                  sede: v.sede,
+                  jefe_solicitante: v.jefeSolicitante,
+                  prioridad: v.prioridad,
+                  moneda: v.moneda,
+                  sueldo_objetivo: v.sueldoObjetivo,
+                  banda_minima: v.bandaMin,
+                  banda_maxima: v.bandaMax,
+                  fecha_solicitud: v.fechaSolicitud,
+                  fecha_cierre: v.fechaCierre ?? v.fechaObjetivoCierre,
+                },
+              ])
+              .select()
+              .single();
+
+            if (error) {
+              console.error(error);
+              alert("Error: " + error.message);
+              return;
+            }
+
+            if (data) {
+              setVacancies((prev) => [mapVacancyRow(data as Record<string, unknown>), ...prev]);
+            }
+
+            alert("Guardado en Supabase");
+          }}
         />
       </div>
 
@@ -302,16 +332,35 @@ export function VacanciesModule({
             <VacanciesTable
               vacancies={pagedVacancies}
               candidatesByVacancyId={candidatesByVacancyId}
-              onVacancyUpdate={(id, patch) =>
-                setVacancies((prev) =>
-                  prev.map((v) =>
-                    v.id === id ? { ...v, ...patch, updatedAt: new Date().toISOString() } : v
-                  )
-                )
-              }
-              onVacancyDelete={(id) =>
-                setVacancies((prev) => prev.filter((v) => v.id !== id))
-              }
+              onVacancyUpdate={async (id, patch) => {
+                const dbRow = vacancyPatchToDbRow(patch);
+                if (Object.keys(dbRow).length === 0) return undefined;
+
+                const { data, error } = await supabase
+                  .from("vacantes")
+                  .update(dbRow)
+                  .eq("id", id)
+                  .select()
+                  .single();
+
+                if (error) {
+                  alert(`No se pudo actualizar la vacante: ${error.message}`);
+                  return undefined;
+                }
+
+                if (!data) return undefined;
+                const mapped = mapVacancyRow(data as Record<string, unknown>);
+                setVacancies((prev) => prev.map((v) => (v.id === id ? mapped : v)));
+                return mapped;
+              }}
+              onVacancyDelete={async (id) => {
+                const { error } = await supabase.from("vacantes").delete().eq("id", id);
+                if (error) {
+                  alert(`No se pudo eliminar la vacante: ${error.message}`);
+                  return;
+                }
+                setVacancies((prev) => prev.filter((v) => v.id !== id));
+              }}
             />
             <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
           </div>
