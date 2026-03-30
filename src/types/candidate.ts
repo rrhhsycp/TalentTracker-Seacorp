@@ -49,6 +49,7 @@ export type Candidate = {
   dni: string;
   celular: string;
   correo: string;
+  residencia: string;
   sede: CandidateSede;
   vacancyId: string;
   etapa: CandidateStage;

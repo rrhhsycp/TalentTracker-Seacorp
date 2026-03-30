@@ -25,6 +25,7 @@ import { VacanciesTable } from "@/components/vacancies/vacancies-table";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/ui/pagination";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -99,6 +100,7 @@ export function VacanciesModule({
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [sedeFilter, setSedeFilter] = useState<VacancySede | "todas">("todas");
   const [estadoFilter, setEstadoFilter] = useState<VacancyEstado | "todas">("todas");
+  const [vacanteQuery, setVacanteQuery] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -164,9 +166,13 @@ export function VacanciesModule({
     return sortedVacancies.filter((v) => {
       if (sedeFilter !== "todas" && v.sede !== sedeFilter) return false;
       if (estadoFilter !== "todas" && v.estado !== estadoFilter) return false;
+      if (vacanteQuery.trim()) {
+        const q = vacanteQuery.trim().toLowerCase();
+        if (!v.cargo.toLowerCase().includes(q)) return false;
+      }
       return true;
     });
-  }, [sortedVacancies, sedeFilter, estadoFilter]);
+  }, [sortedVacancies, sedeFilter, estadoFilter, vacanteQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filteredVacancies.length / pageSize));
   const pagedVacancies = useMemo(() => {
@@ -234,7 +240,7 @@ export function VacanciesModule({
 
   useEffect(() => {
     setPage(1);
-  }, [sedeFilter, estadoFilter]);
+  }, [sedeFilter, estadoFilter, vacanteQuery]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -327,6 +333,15 @@ export function VacanciesModule({
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Vacante</Label>
+              <Input
+                value={vacanteQuery}
+                onChange={(e) => setVacanteQuery(e.target.value)}
+                placeholder="Buscar por cargo"
+                className="h-10 rounded-lg"
+              />
+            </div>
             <div className="flex items-end">
               <Button
                 type="button"
@@ -335,6 +350,7 @@ export function VacanciesModule({
                 onClick={() => {
                   setSedeFilter("todas");
                   setEstadoFilter("todas");
+                  setVacanteQuery("");
                 }}
               >
                 Limpiar filtros

@@ -79,6 +79,7 @@ export function mapCandidateRow(row: Record<string, unknown>): Candidate {
     dni: String(row.dni ?? ""),
     celular: String(row.celular ?? ""),
     correo: String(row.correo ?? ""),
+    residencia: String(row.residencia ?? ""),
     sede: row.sede as CandidateSede,
     vacancyId: String(row.vacante_id ?? ""),
     etapa: row.etapa as CandidateStage,

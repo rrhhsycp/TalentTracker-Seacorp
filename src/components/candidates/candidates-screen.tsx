@@ -107,6 +107,7 @@ export function CandidatesScreen({
   const [etapaFilter, setEtapaFilter] = useState<CandidateStage | "todas">(
     "todas"
   );
+  const [vacanteQuery, setVacanteQuery] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -118,6 +119,7 @@ export function CandidatesScreen({
     dni: string;
     celular: string;
     correo: string;
+    residencia: string;
     sede: CandidateSede;
     vacancyId: string;
     etapa: CandidateStage;
@@ -137,6 +139,7 @@ export function CandidatesScreen({
     dni: string;
     celular: string;
     correo: string;
+    residencia: string;
     sede: CandidateSede;
     vacancyId: string;
     etapa: CandidateStage;
@@ -187,6 +190,12 @@ export function CandidatesScreen({
     const base = candidates.filter((c) => {
       if (sedeFilter !== "todas" && c.sede !== sedeFilter) return false;
       if (etapaFilter !== "todas" && c.etapa !== etapaFilter) return false;
+      if (vacanteQuery.trim()) {
+        const vac = vacancyById(vacanciesState, c.vacancyId);
+        const cargo = vac?.cargo ?? "";
+        if (!cargo.toLowerCase().includes(vacanteQuery.trim().toLowerCase()))
+          return false;
+      }
       return true;
     });
     return [...base].sort((a, b) => {
@@ -194,7 +203,7 @@ export function CandidatesScreen({
       const bTs = new Date(b.updatedAt ?? b.createdAt ?? 0).getTime();
       return bTs - aTs;
     });
-  }, [candidates, sedeFilter, etapaFilter]);
+  }, [candidates, sedeFilter, etapaFilter, vacanteQuery, vacanciesState]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paged = useMemo(() => {
@@ -204,7 +213,7 @@ export function CandidatesScreen({
 
   useEffect(() => {
     setPage(1);
-  }, [sedeFilter, etapaFilter]);
+  }, [sedeFilter, etapaFilter, vacanteQuery]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -232,6 +241,7 @@ export function CandidatesScreen({
       dni: selectedCandidate.dni,
       celular: selectedCandidate.celular,
       correo: selectedCandidate.correo,
+      residencia: selectedCandidate.residencia,
       sede: selectedCandidate.sede,
       vacancyId: selectedCandidate.vacancyId,
       etapa: selectedCandidate.etapa,
@@ -279,6 +289,7 @@ export function CandidatesScreen({
           dni: draftEdit.dni.trim(),
           celular: draftEdit.celular.trim(),
           correo: draftEdit.correo.trim(),
+          residencia: draftEdit.residencia.trim(),
           sede: draftEdit.sede,
           vacante_id: draftEdit.vacancyId,
           etapa: draftEdit.etapa,
@@ -334,6 +345,7 @@ export function CandidatesScreen({
       dni: "",
       celular: "",
       correo: "",
+      residencia: "",
       sede: "Lima",
       vacancyId: fallbackVacancy.id,
       etapa: CANDIDATE_STAGES[0],
@@ -384,6 +396,7 @@ export function CandidatesScreen({
       dni: draftNew.dni.trim(),
       celular: draftNew.celular.trim(),
       correo: draftNew.correo.trim(),
+      residencia: draftNew.residencia.trim(),
       sede: draftNew.sede,
       vacante_id: draftNew.vacancyId,
       etapa: draftNew.etapa,
@@ -492,6 +505,7 @@ export function CandidatesScreen({
         DNI: c.dni,
         CELULAR: c.celular,
         CORREO: c.correo,
+        RESIDENCIA: c.residencia,
         SEDE: c.sede,
         VACANTE: vac?.cargo ?? "—",
         "ESTADO ACTUAL": c.etapa,
@@ -604,6 +618,16 @@ export function CandidatesScreen({
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-slate-700">Vacante</Label>
+          <Input
+            value={vacanteQuery}
+            onChange={(e) => setVacanteQuery(e.target.value)}
+            placeholder="Buscar vacante por cargo"
+            className="h-10 w-[280px] rounded-lg"
+          />
         </div>
 
         <div className="flex items-center gap-2 sm:ml-auto">
@@ -793,6 +817,15 @@ export function CandidatesScreen({
 
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Residencia
+                    </p>
+                    <p className="text-sm text-slate-900">
+                      {selectedCandidate.residencia || "—"}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                       Sede
                     </p>
                     <p className="text-sm text-slate-900">{selectedCandidate.sede}</p>
@@ -945,6 +978,19 @@ export function CandidatesScreen({
                         value={draftEdit?.correo ?? ""}
                         onChange={(e) =>
                           setDraftEdit((d) => (d ? { ...d, correo: e.target.value } : d))
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-cand-residencia">Residencia</Label>
+                      <Input
+                        id="edit-cand-residencia"
+                        value={draftEdit?.residencia ?? ""}
+                        onChange={(e) =>
+                          setDraftEdit((d) =>
+                            d ? { ...d, residencia: e.target.value } : d
+                          )
                         }
                       />
                     </div>
@@ -1269,6 +1315,19 @@ export function CandidatesScreen({
                     value={draftNew.correo}
                     onChange={(e) =>
                       setDraftNew((d) => (d ? { ...d, correo: e.target.value } : d))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-cand-residencia">Residencia</Label>
+                  <Input
+                    id="new-cand-residencia"
+                    value={draftNew.residencia}
+                    onChange={(e) =>
+                      setDraftNew((d) =>
+                        d ? { ...d, residencia: e.target.value } : d
+                      )
                     }
                   />
                 </div>
