@@ -116,6 +116,8 @@ export function CandidatesScreen({
   const [draftEdit, setDraftEdit] = useState<{
     nombre: string;
     dni: string;
+    celular: string;
+    correo: string;
     sede: CandidateSede;
     vacancyId: string;
     etapa: CandidateStage;
@@ -133,6 +135,8 @@ export function CandidatesScreen({
   const [draftNew, setDraftNew] = useState<{
     nombre: string;
     dni: string;
+    celular: string;
+    correo: string;
     sede: CandidateSede;
     vacancyId: string;
     etapa: CandidateStage;
@@ -226,6 +230,8 @@ export function CandidatesScreen({
     setDraftEdit({
       nombre: selectedCandidate.nombre,
       dni: selectedCandidate.dni,
+      celular: selectedCandidate.celular,
+      correo: selectedCandidate.correo,
       sede: selectedCandidate.sede,
       vacancyId: selectedCandidate.vacancyId,
       etapa: selectedCandidate.etapa,
@@ -253,6 +259,8 @@ export function CandidatesScreen({
     if (
       !draftEdit.nombre.trim() ||
       !draftEdit.dni.trim() ||
+      !draftEdit.celular.trim() ||
+      !draftEdit.correo.trim() ||
       !draftEdit.vacancyId ||
       !Number.isFinite(n) ||
       !Number.isFinite(a) ||
@@ -269,6 +277,8 @@ export function CandidatesScreen({
         .update({
           nombre_completo: draftEdit.nombre.trim(),
           dni: draftEdit.dni.trim(),
+          celular: draftEdit.celular.trim(),
+          correo: draftEdit.correo.trim(),
           sede: draftEdit.sede,
           vacante_id: draftEdit.vacancyId,
           etapa: draftEdit.etapa,
@@ -322,6 +332,8 @@ export function CandidatesScreen({
     setDraftNew({
       nombre: "",
       dni: "",
+      celular: "",
+      correo: "",
       sede: "Lima",
       vacancyId: fallbackVacancy.id,
       etapa: CANDIDATE_STAGES[0],
@@ -349,6 +361,8 @@ export function CandidatesScreen({
     if (
       !draftNew.nombre.trim() ||
       !draftNew.dni.trim() ||
+      !draftNew.celular.trim() ||
+      !draftNew.correo.trim() ||
       !draftNew.vacancyId ||
       !Number.isFinite(n) ||
       !Number.isFinite(a) ||
@@ -368,6 +382,8 @@ export function CandidatesScreen({
       id,
       nombre_completo: draftNew.nombre.trim(),
       dni: draftNew.dni.trim(),
+      celular: draftNew.celular.trim(),
+      correo: draftNew.correo.trim(),
       sede: draftNew.sede,
       vacante_id: draftNew.vacancyId,
       etapa: draftNew.etapa,
@@ -472,12 +488,12 @@ export function CandidatesScreen({
     return filtered.map((c) => {
       const vac = vacancyById(vacanciesState, c.vacancyId);
       return {
-        "ID CANDIDATO": c.id,
         "NOMBRE COMPLETO": c.nombre,
         DNI: c.dni,
+        CELULAR: c.celular,
+        CORREO: c.correo,
         SEDE: c.sede,
         VACANTE: vac?.cargo ?? "—",
-        "ID VACANTE": c.vacancyId,
         "ESTADO ACTUAL": c.etapa,
         "EXPECTATIVA SALARIAL": formatMoney(c.expectativaSalarial, c.moneda),
         MONEDA: c.moneda,
@@ -763,6 +779,20 @@ export function CandidatesScreen({
 
                   <div>
                     <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Celular
+                    </p>
+                    <p className="text-sm font-medium text-slate-900">{selectedCandidate.celular}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                      Correo
+                    </p>
+                    <p className="text-sm font-medium text-slate-900">{selectedCandidate.correo}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                       Sede
                     </p>
                     <p className="text-sm text-slate-900">{selectedCandidate.sede}</p>
@@ -892,6 +922,29 @@ export function CandidatesScreen({
                         value={draftEdit?.dni ?? ""}
                         onChange={(e) =>
                           setDraftEdit((d) => (d ? { ...d, dni: e.target.value } : d))
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-cand-celular">Celular</Label>
+                      <Input
+                        id="edit-cand-celular"
+                        value={draftEdit?.celular ?? ""}
+                        onChange={(e) =>
+                          setDraftEdit((d) => (d ? { ...d, celular: e.target.value } : d))
+                        }
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-cand-correo">Correo</Label>
+                      <Input
+                        id="edit-cand-correo"
+                        type="email"
+                        value={draftEdit?.correo ?? ""}
+                        onChange={(e) =>
+                          setDraftEdit((d) => (d ? { ...d, correo: e.target.value } : d))
                         }
                       />
                     </div>
@@ -1126,6 +1179,8 @@ export function CandidatesScreen({
                       disabled={
                         !draftEdit?.nombre.trim() ||
                         !draftEdit?.dni.trim() ||
+                        !draftEdit?.celular.trim() ||
+                        !draftEdit?.correo.trim() ||
                         !draftEdit?.vacancyId ||
                         !Number.isFinite(Number(draftEdit?.expectativaSalarial)) ||
                         !Number.isFinite(Number(draftEdit?.aniosExperiencia)) ||
@@ -1191,6 +1246,29 @@ export function CandidatesScreen({
                     value={draftNew.dni}
                     onChange={(e) =>
                       setDraftNew((d) => (d ? { ...d, dni: e.target.value } : d))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-cand-celular">Celular</Label>
+                  <Input
+                    id="new-cand-celular"
+                    value={draftNew.celular}
+                    onChange={(e) =>
+                      setDraftNew((d) => (d ? { ...d, celular: e.target.value } : d))
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="new-cand-correo">Correo</Label>
+                  <Input
+                    id="new-cand-correo"
+                    type="email"
+                    value={draftNew.correo}
+                    onChange={(e) =>
+                      setDraftNew((d) => (d ? { ...d, correo: e.target.value } : d))
                     }
                   />
                 </div>
@@ -1416,6 +1494,8 @@ export function CandidatesScreen({
                   disabled={
                     !draftNew.nombre.trim() ||
                     !draftNew.dni.trim() ||
+                    !draftNew.celular.trim() ||
+                    !draftNew.correo.trim() ||
                     !draftNew.vacancyId ||
                     !Number.isFinite(Number(draftNew.expectativaSalarial)) ||
                     !Number.isFinite(Number(draftNew.aniosExperiencia)) ||

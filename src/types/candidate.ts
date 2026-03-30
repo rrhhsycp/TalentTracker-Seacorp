@@ -10,6 +10,7 @@ export const CANDIDATE_SEDES: CandidateSede[] = [
 ];
 
 export type CandidateGradoAcademico =
+  | "Técnico"
   | "Egresado"
   | "Bachiller"
   | "Licenciado"
@@ -18,6 +19,7 @@ export type CandidateGradoAcademico =
   | "otro";
 
 export const CANDIDATE_GRADOS_ACADEMICOS: CandidateGradoAcademico[] = [
+  "Técnico",
   "Egresado",
   "Bachiller",
   "Licenciado",
@@ -45,6 +47,8 @@ export type Candidate = {
   id: string;
   nombre: string;
   dni: string;
+  celular: string;
+  correo: string;
   sede: CandidateSede;
   vacancyId: string;
   etapa: CandidateStage;

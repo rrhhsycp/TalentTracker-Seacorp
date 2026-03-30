@@ -38,8 +38,43 @@ import {
   mapVacancyRow,
   vacancyPatchToDbRow,
 } from "@/lib/supabase-mappers";
+
+// En Supabase la columna se llama `estado`.
+// (Si en algún entorno todavía existe `status`, el mapper lo seguirá leyendo como fallback.)
+const VACANCY_ESTADO_DB_COLUMN = "estado" as const;
+
+function truncateToLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function daysBetweenLocalDays(start: Date, end: Date): number {
+  const a = truncateToLocalDay(start).getTime();
+  const b = truncateToLocalDay(end).getTime();
+  return Math.floor((b - a) / (1000 * 60 * 60 * 24));
+}
+
+function computeVacancySlaDays(v: Vacancy, now: Date): number | null {
+  // SLA = días entre fecha de solicitud y fecha actual o de cierre.
+  if (!v.fechaSolicitud) return null;
+  const start = new Date(v.fechaSolicitud + "T12:00:00");
+  if (Number.isNaN(start.getTime())) return null;
+  const end = v.fechaCierre ? new Date(v.fechaCierre + "T12:00:00") : now;
+  if (Number.isNaN(end.getTime())) return null;
+  return Math.max(0, daysBetweenLocalDays(start, end));
+}
+/** Fecha calendario sin desfase: `YYYY-MM-DD` se interpreta en hora local (igual que la tabla de vacantes). */
 function formatDate(iso?: string): string {
   if (!iso) return "—";
+  const trimmed = iso.trim().slice(0, 10);
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (ymd) {
+    const y = Number(ymd[1]);
+    const mo = Number(ymd[2]);
+    const d = Number(ymd[3]);
+    const date = new Date(y, mo - 1, d);
+    if (Number.isNaN(date.getTime())) return "—";
+    return new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(date);
+  }
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(d);
@@ -140,6 +175,7 @@ export function VacanciesModule({
   }, [filteredVacancies, page]);
 
   const exportRows = useMemo(() => {
+    const now = new Date();
     return filteredVacancies.map((v) => ({
       "ID VACANTE": v.id,
       CARGO: v.cargo,
@@ -148,6 +184,7 @@ export function VacanciesModule({
       PRIORIDAD: v.prioridad,
       "FECHA SOLICITUD": formatDate(v.fechaSolicitud),
       ESTADO: v.estado,
+      "SLA (DÍAS)": computeVacancySlaDays(v, now) ?? "—",
       "JEFE SOLICITANTE": v.jefeSolicitante ?? "—",
       MONEDA: v.moneda ?? "—",
       "SUELDO OBJETIVO": v.sueldoObjetivo ?? "—",
@@ -329,11 +366,16 @@ export function VacanciesModule({
         </div>
         <div className="flex flex-col gap-6 xl:flex-row xl:items-stretch">
           <div className="order-2 min-w-0 flex-1 xl:order-1">
-            <VacanciesTable
+              <VacanciesTable
               vacancies={pagedVacancies}
               candidatesByVacancyId={candidatesByVacancyId}
               onVacancyUpdate={async (id, patch) => {
-                const dbRow = vacancyPatchToDbRow(patch);
+                // Separamos `estado` para mapearlo explícitamente a la columna real (`status`).
+                const { estado, ...rest } = patch;
+                const dbRow = vacancyPatchToDbRow(rest);
+                if (estado !== undefined) {
+                  (dbRow as Record<string, unknown>)[VACANCY_ESTADO_DB_COLUMN] = estado;
+                }
                 if (Object.keys(dbRow).length === 0) return undefined;
 
                 const { data, error } = await supabase

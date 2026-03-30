@@ -8,6 +8,12 @@ import type { Vacancy, VacancyCurrency, VacancyEstado, VacancyPriority, VacancyS
 
 /** Fila devuelta por Supabase (snake_case). */
 export function mapVacancyRow(row: Record<string, unknown>): Vacancy {
+  // Algunas bases usan `status` o `estado_vacante` en vez de `estado`.
+  const estadoRaw =
+    (row.estado as VacancyEstado | undefined) ??
+    (row.status as VacancyEstado | undefined) ??
+    (row.estado_vacante as VacancyEstado | undefined);
+
   return {
     id: String(row.id ?? ""),
     cargo: String(row.cargo ?? ""),
@@ -18,7 +24,7 @@ export function mapVacancyRow(row: Record<string, unknown>): Vacancy {
       typeof row.fecha_solicitud === "string"
         ? row.fecha_solicitud.slice(0, 10)
         : String(row.fecha_solicitud ?? "").slice(0, 10),
-    estado: (row.estado as VacancyEstado) ?? "abierta",
+    estado: estadoRaw ?? "abierta",
     fechaCierre:
       row.fecha_cierre != null && row.fecha_cierre !== ""
         ? String(row.fecha_cierre).slice(0, 10)
@@ -54,7 +60,6 @@ export function vacancyPatchToDbRow(patch: Partial<Vacancy>): Record<string, unk
   if (patch.sede !== undefined) row.sede = patch.sede;
   if (patch.prioridad !== undefined) row.prioridad = patch.prioridad;
   if (patch.fechaSolicitud !== undefined) row.fecha_solicitud = patch.fechaSolicitud;
-  if (patch.estado !== undefined) row.estado = patch.estado;
   if ("fechaCierre" in patch) row.fecha_cierre = patch.fechaCierre ?? null;
   if ("jefeSolicitante" in patch) row.jefe_solicitante = patch.jefeSolicitante ?? null;
   if (patch.moneda !== undefined) row.moneda = patch.moneda;
@@ -72,6 +77,8 @@ export function mapCandidateRow(row: Record<string, unknown>): Candidate {
     id: String(row.id ?? ""),
     nombre: String(row.nombre_completo ?? ""),
     dni: String(row.dni ?? ""),
+    celular: String(row.celular ?? ""),
+    correo: String(row.correo ?? ""),
     sede: row.sede as CandidateSede,
     vacancyId: String(row.vacante_id ?? ""),
     etapa: row.etapa as CandidateStage,

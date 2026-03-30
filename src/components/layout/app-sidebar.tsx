@@ -18,11 +18,23 @@ const nav = [
   { href: "/reportes", label: "Reportes", icon: BarChart3 },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({
+  mobileOpen,
+  onMobileClose,
+}: {
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}) {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col border-r border-slate-800 bg-slate-950 text-slate-200">
+    <aside
+      className={cn(
+        "fixed left-0 top-0 z-50 h-screen w-60 flex-col border-r border-slate-800 bg-slate-950 text-slate-200",
+        mobileOpen ? "flex md:flex" : "hidden md:flex"
+      )}
+      aria-hidden={!mobileOpen ? true : undefined}
+    >
       <div className="flex h-16 items-center gap-2 border-b border-slate-800 px-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500 text-sm font-bold text-white">
           TT
@@ -42,6 +54,9 @@ export function AppSidebar() {
             <Link
               key={href}
               href={href}
+              onClick={() => {
+                if (mobileOpen) onMobileClose();
+              }}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
                 active
